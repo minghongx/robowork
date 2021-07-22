@@ -31,4 +31,10 @@
 
 [What are we gonna do about Git Shell on Windows](https://github.com/desktop/desktop/issues/340)
 
-[]()
+[再也不丢文件的方法～ Git从入门到精通](https://www.bilibili.com/video/BV1Yx411f7Cu)
+
+> remote: error: GH007: Your push would publish a private email address.        
+> remote: You can make your email public or disable this protection by visiting:        
+> remote: http://github.com/settings/emails 
+> [Answer](https://stackoverflow.com/questions/43863522/error-your-push-would-publish-a-private-email-address)
+
