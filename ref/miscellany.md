@@ -38,3 +38,4 @@
 > remote: http://github.com/settings/emails 
 > [Answer](https://stackoverflow.com/questions/43863522/error-your-push-would-publish-a-private-email-address)
 
+[Inviting collaborators to a personal repository](https://docs.github.com/github/setting-up-and-managing-your-github-user-account/managing-access-to-your-personal-repositories/inviting-collaborators-to-a-personal-repository)
