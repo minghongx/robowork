@@ -100,6 +100,8 @@ class PreliminaryCompetitionStrategy(PreliminaryCompetitionRequirements, Machine
 
     # def prepare
 
+    # def submit_to_process_pool
+
     def buffer_frames(self):
         def buffer_frames():
             while True:
