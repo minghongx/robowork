@@ -36,8 +36,15 @@
 > remote: error: GH007: Your push would publish a private email address.        
 > remote: You can make your email public or disable this protection by visiting:        
 > remote: http://github.com/settings/emails 
+> 
 > [Answer](https://stackoverflow.com/questions/43863522/error-your-push-would-publish-a-private-email-address)
 
 [Inviting collaborators to a personal repository](https://docs.github.com/github/setting-up-and-managing-your-github-user-account/managing-access-to-your-personal-repositories/inviting-collaborators-to-a-personal-repository)
 
-[]()
+[IntelliJ IDEA. Share a Project on GitHub](https://www.youtube.com/watch?v=4ukhZvOmAtk&ab_channel=IntelliJIDEAbyJetBrains)
+
+[Sharing Your Project on GitHub](https://blog.jetbrains.com/idea/2020/11/sharing-your-project-on-github/)
+
+[IntelliJ AppCode Version control](https://www.jetbrains.com/objc/features/version-control.html)
+
+[IntelliJ IDEA. GitHub Pull Requests](https://www.youtube.com/watch?v=MoXxF3aWW8k&ab_channel=IntelliJIDEAbyJetBrains)

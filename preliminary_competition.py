@@ -94,8 +94,9 @@ class PreliminaryCompetitionStrategy(PreliminaryCompetitionRequirements, Machine
         self.start_following_line = Event()
 
     def idle(self):
+        self.start_following_line.clear()  # stop following line
         self.camera.set_pwm_servo_pulse(1500)
-        ActionGroups.unload()
+        ActionGroups.unload()  # unload servos to save power
 
     # def prepare
 
