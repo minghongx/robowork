@@ -8,8 +8,6 @@ class PuppyPi(PreliminaryCompetitionStrategy):
     def __init__(self):
         super().__init__()
 
-    # def show_camera(self):
-
 
 if __name__ == '__main__':
     with PuppyPi() as puppypi:

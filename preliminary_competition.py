@@ -1,7 +1,9 @@
-from concurrent.futures import ProcessPoolExecutor
+import functools
+from pathos.multiprocessing import ProcessPool, cpu_count
 from multiprocessing import Event, Queue
 from abc import ABC, abstractmethod
 from time import sleep
+# from operator import methodcaller
 
 # import psutil
 import numpy as np
@@ -51,20 +53,41 @@ class PreliminaryCompetitionRequirements(ABC):
         pass
 
 
+# def submit_to_the_pool(done_callback: str = None):
+#     def decorator(func):
+#         @functools.wraps(func)
+#         def wrapper(self, *args, **kwargs):
+#             if done_callback is None:
+#                 self.pool
+#             else:
+#                 callback = getattr(self, done_callback)
+#                 self.pool
+#             # if done_callback is None:
+#             #     self.executor.submit(func, self, *args, **kwargs)
+#             # callback = getattr(self, done_callback)
+#             # self.executor.submit(func, self, *args, **kwargs).add_done_callback(callback)
+#         return wrapper
+#     return decorator
+
+def submit_to_the_pool(func):
+    @functools.wraps(func)
+    def wrapper(instance, *args, **kwargs):
+        instance.pool.apipe(func, instance, *args, **kwargs)
+    return wrapper
+
+
 class PreliminaryCompetitionStrategy(PreliminaryCompetitionRequirements, Machine):
 
     def __enter__(self):
-        # self.process_pool = mp.Pool(mp.cpu_count())
-        self.executor = ProcessPoolExecutor(max_workers=cv.getNumberOfCPUs()-1)
+        self.pool = ProcessPool(cpu_count()-1)
         self.cap = cv.VideoCapture(0)
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
+        self.pool.close()
+        self.pool.join()
         self.cap.release()
         cv.destroyAllWindows()
-        self.executor.shutdown()
-        # self.process_pool.terminate()
-        # self.process_pool.join()
 
     def __init__(self):
 
@@ -100,152 +123,149 @@ class PreliminaryCompetitionStrategy(PreliminaryCompetitionRequirements, Machine
 
     # def prepare
 
-    # def submit_to_process_pool
-
+    @submit_to_the_pool
     def buffer_frames(self):
-        def buffer_frames():
-            while True:
-                ret, frame = self.cap.read()
-                if ret:
-                    continue
-                if self.frames.full():
-                    self.frames.get()  # imitating a double ended queue
-                self.frames.put(frame)
-        self.executor.submit(buffer_frames)
+        while True:
+            ret, frame = self.cap.read()
+            if not ret:
+                continue
+            if self.frames.full():
+                self.frames.get()  # imitating a double ended queue
+            self.frames.put(frame)
 
+    @submit_to_the_pool
     def follow_the_30mm_black_line(self):  # FIXME: 自己设计 gait
-        def follow_the_30mm_black_line():
-            # FIXME
-            camera_position = 1600
-            self.camera.set_pwm_servo_pulse(camera_position)
-            while True:
-                self.start_following_line.wait()
 
-                px_deviation = row_of_pixels_method(self.frames.get(), 420)
+        # FIXME
+        camera_position = 2300
+        self.camera.set_pwm_servo_pulse(camera_position)
+        self.start_following_line.set()
 
-                if abs(px_deviation) < 65:
-                    self.gait.move(x=12, y=0, yaw_rate=0)  # go forward
-                    camera_position -= 27 if camera_position > 1600 else 0
-                    self.camera.set_pwm_servo_pulse(camera_position)  # FIXME
-                if px_deviation >= 65:
-                    self.gait.move(x=7, y=0, yaw_rate=-25 / 57.3)  # turn right
-                    camera_position += 22 if camera_position < 2300 else 0
-                    self.camera.set_pwm_servo_pulse(camera_position)  # FIXME
-                if px_deviation <= -65:
-                    self.gait.move(x=7, y=0, yaw_rate=25 / 57.3)  # turn left
-                    camera_position += 22 if camera_position < 2300 else 0
-                    self.camera.set_pwm_servo_pulse(camera_position)  # FIXME
+        while True:
+            self.start_following_line.wait()
+
+            px_deviation = row_of_pixels_method(self.frames.get(), 420)
+
+            if abs(px_deviation) < 65:
+                self.gait.move(x=12, y=0, yaw_rate=0)  # go forward
+                camera_position -= 27 if camera_position > 1600 else 0
+                self.camera.set_pwm_servo_pulse(camera_position)  # FIXME
+            if px_deviation >= 65:
+                self.gait.move(x=7, y=0, yaw_rate=-25 / 57.3)  # turn right
+                camera_position += 22 if camera_position < 2300 else 0
+                self.camera.set_pwm_servo_pulse(camera_position)  # FIXME
+            if px_deviation <= -65:
+                self.gait.move(x=7, y=0, yaw_rate=25 / 57.3)  # turn left
+                camera_position += 22 if camera_position < 2300 else 0
+                self.camera.set_pwm_servo_pulse(camera_position)  # FIXME
+
+    @submit_to_the_pool#(done_callback='close_to_the_door')
+    def detect_the_blue_pet_door(self):
+        while True:
+            hsv = cv.cvtColor(self.frames.get(), cv.COLOR_BGR2HSV)
+            blurred_hsv = cv.GaussianBlur(hsv, (3, 3), 3)
+            blue = cv.inRange(blurred_hsv, (100, 70, 46), (124, 255, 255))
+            opened_blue = cv.morphologyEx(blue, cv.MORPH_OPEN, (6, 6))
+            contours, _ = cv.findContours(opened_blue, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_TC89_L1)
+            try:
+                presumable_door_contour, area = _calc_max_contour_area(contours)
+            except ValueError:
+                continue
+            x, y, w, h = cv.boundingRect(presumable_door_contour)
+            disparity = cv.matchShapes(cv.imread("pet_door_standard.jpg"), opened_blue[y:y+h, x:x+w], cv.CONTOURS_MATCH_I1, 0)
+            if disparity < 0.1:
+                break
+
+        self.close_to_the_door()  # FIXME: register a done callback
+
+    @submit_to_the_pool#(done_callback='thru_the_door')
+    def pass_thru_the_blue_pet_door(self):  # FIXME: 自己设计 gait
+        self.camera.set_pwm_servo_pulse(2100)
+        self.gait.stance_config(self._stance(0, 0, -12, 2), pitch=0, roll=0)  # 趴下
+        self.gait.gait_config(overlap_time=0.1, swing_time=0.15, z_clearance=2)
+        sleep(10)
+
+        self.thru_the_door()  # FIXME: register a done callback
+
+    @submit_to_the_pool#(done_callback='close_to_the_curb')
+    def detect_the_yellow_demarcation_line(self):
+        while True:
+            hsv = cv.cvtColor(self.frames.get(), cv.COLOR_BGR2HSV)
+            blurred_hsv = cv.GaussianBlur(hsv, (3, 3), 3)
+            yellow = cv.inRange(blurred_hsv, (20, 44, 44), (38, 255, 255))
+            opened_blue = cv.morphologyEx(yellow, cv.MORPH_OPEN, (6, 6))
+            contours, _ = cv.findContours(opened_blue, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_TC89_L1)[0]
+            try:
+                _, area = _calc_max_contour_area(contours)
+            except ValueError:
+                continue
+            if area > 40000:
+                break
+
+        self.close_to_the_curb()  # FIXME: register a done callback
+
+    @submit_to_the_pool
+    def climb_the_curb(self):  # FIXME: 自己设计动作
+        self.start_following_line.clear()
+
+        self.gait.move(x=5, y=0, yaw_rate=0)
+        self.gait.move_stop()
+        sleep(0.2)
+        runActionGroup('coord_up_stair_1')
+        sleep(8)
+        self.gait.stance_config(self._stance(0, 0, -13, -4), pitch=-20 / 57.3, roll=0)
+        self.gait.gait_config(overlap_time=0.2, swing_time=0.4, z_clearance=2)
+        self.gait.move_stop()
+        sleep(0.1)
+        self.gait.move(x=2.5, y=0, yaw_rate=0)
+        sleep(4.5)
+        self.gait.move_stop()
+        sleep(0.2)
+        runActionGroup('coord_up_stair_2')
+        sleep(7)
+        self.gait.stance_config(self._stance(0, 0, -13, 0), pitch=0, roll=0)
+        self.gait.gait_config(overlap_time=0.1, swing_time=0.2, z_clearance=1.5)
+        sleep(5.1)
 
         self.start_following_line.set()
-        self.executor.submit(follow_the_30mm_black_line)
 
-    def detect_the_blue_pet_door(self):
-        def detect_the_blue_pet_door():
-            while True:
-                hsv = cv.cvtColor(self.frames.get(), cv.COLOR_BGR2HSV)
-                blurred_hsv = cv.GaussianBlur(hsv, (3, 3), 3)
-                blue = cv.inRange(blurred_hsv, (100, 70, 46), (124, 255, 255))
-                opened_blue = cv.morphologyEx(blue, cv.MORPH_OPEN, (6, 6))
-                contours, _ = cv.findContours(opened_blue, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_TC89_L1)
-                try:
-                    presumable_door_contour, area = _calc_max_contour_area(contours)
-                except ValueError:
-                    continue
-                x, y, w, h = cv.boundingRect(presumable_door_contour)
-                disparity = cv.matchShapes(cv.imread("pet_door_standard.jpg"), opened_blue[y:y+h, x:x+w], cv.CONTOURS_MATCH_I1, 0)
-                if disparity < 0.1:
-                    break
-        self.executor.submit(detect_the_blue_pet_door).add_done_callback(self.close_to_the_door)
-
-    def pass_thru_the_blue_pet_door(self):  # FIXME: 自己设计 gait
-        def pass_thru_the_blue_pet_door():
-            self.camera.set_pwm_servo_pulse(2100)
-            self.gait.stance_config(self._stance(0, 0, -12, 2), pitch=0, roll=0)  # 趴下
-            self.gait.gait_config(overlap_time=0.1, swing_time=0.15, z_clearance=2)
-            sleep(10)
-        self.executor.submit(pass_thru_the_blue_pet_door).add_done_callback(self.thru_the_door)
-
-    def detect_the_yellow_demarcation_line(self):
-        def detect_the_yellow_demarcation_line():
-            while True:
-                hsv = cv.cvtColor(self.frames.get(), cv.COLOR_BGR2HSV)
-                blurred_hsv = cv.GaussianBlur(hsv, (3, 3), 3)
-                yellow = cv.inRange(blurred_hsv, (20, 44, 44), (38, 255, 255))
-                opened_blue = cv.morphologyEx(yellow, cv.MORPH_OPEN, (6, 6))
-                contours, _ = cv.findContours(opened_blue, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_TC89_L1)[0]
-                try:
-                    _, area = _calc_max_contour_area(contours)
-                except ValueError:
-                    continue
-                if area > 40000:
-                    break
-        self.executor.submit(detect_the_yellow_demarcation_line).add_done_callback(self.close_to_the_curb)
-
-    def climb_the_curb(self):  # FIXME: 自己设计动作
-        def climb_the_curb():
-            self.start_following_line.clear()
-
-            self.gait.move(x=5, y=0, yaw_rate=0)
-            self.gait.move_stop()
-            sleep(0.2)
-            runActionGroup('coord_up_stair_1')
-            sleep(8)
-            self.gait.stance_config(self._stance(0, 0, -13, -4), pitch=-20 / 57.3, roll=0)
-            self.gait.gait_config(overlap_time=0.2, swing_time=0.4, z_clearance=2)
-            self.gait.move_stop()
-            sleep(0.1)
-            self.gait.move(x=2.5, y=0, yaw_rate=0)
-            sleep(4.5)
-            self.gait.move_stop()
-            sleep(0.2)
-            runActionGroup('coord_up_stair_2')
-            sleep(7)
-            self.gait.stance_config(self._stance(0, 0, -13, 0), pitch=0, roll=0)
-            self.gait.gait_config(overlap_time=0.1, swing_time=0.2, z_clearance=1.5)
-            sleep(5.1)
-
-            self.start_following_line.set()
-
-        self.executor.submit(climb_the_curb)
-
+    @submit_to_the_pool
     def descend_the_curb(self):  # FIXME: 自己设计动作
-        def descend_the_curb():
-            self.start_following_line.clear()
+        self.start_following_line.clear()
 
-            self.gait.move_stop()
-            sleep(0.3)
-            runActionGroup('coord_down_stair')
-            sleep(6)
-            self.gait.stance_config(self._stance(0, 0, -13, 4), pitch=20 / 57.3, roll=0)
-            self.gait.gait_config(overlap_time=0.1, swing_time=0.2, z_clearance=2)
-            self.gait.move_stop()
-            sleep(0.2)
-            self.gait.move(x=3.7, y=0, yaw_rate=0)
-            sleep(4.5)
-            self.gait.stance_config(self._stance(0, 0, -15, 2))
-            self.gait.gait_config(overlap_time=0.1, swing_time=0.15, z_clearance=3)
-            self.gait.move_stop()
-            sleep(0.2)
+        self.gait.move_stop()
+        sleep(0.3)
+        runActionGroup('coord_down_stair')
+        sleep(6)
+        self.gait.stance_config(self._stance(0, 0, -13, 4), pitch=20 / 57.3, roll=0)
+        self.gait.gait_config(overlap_time=0.1, swing_time=0.2, z_clearance=2)
+        self.gait.move_stop()
+        sleep(0.2)
+        self.gait.move(x=3.7, y=0, yaw_rate=0)
+        sleep(4.5)
+        self.gait.stance_config(self._stance(0, 0, -15, 2))
+        self.gait.gait_config(overlap_time=0.1, swing_time=0.15, z_clearance=3)
+        self.gait.move_stop()
+        sleep(0.2)
 
-            self.start_following_line.set()
+        self.start_following_line.set()
 
-        self.executor.submit(descend_the_curb)
-
+    @submit_to_the_pool#(done_callback='crossed_the_finish_line')
     def detect_the_black_cross(self):
-        def detect_the_black_cross():
-            while True:
-                _, otsu_binary_img = cv.threshold(cv.cvtColor(self.frames.get(), cv.COLOR_BGR2GRAY), 0, 255, cv.THRESH_BINARY_INV + cv.THRESH_OTSU)
-                opened_otsu_binary_img = cv.morphologyEx(otsu_binary_img, cv.MORPH_OPEN, (7, 7))
-                contours, _ = cv.findContours(opened_otsu_binary_img, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_TC89_L1)
-                try:
-                    presumable_door_contour, area = _calc_max_contour_area(contours)
-                except ValueError:
-                    continue
-                x, y, w, h = cv.boundingRect(presumable_door_contour)
-                disparity = cv.matchShapes(cv.imread("cross_standard.png"), opened_otsu_binary_img[y:y+h, x:x+w], cv.CONTOURS_MATCH_I1, 0)
-                if disparity < 0.1:
-                    break
-        self.executor.submit(detect_the_black_cross).add_done_callback(self.crossed_the_finish_line)
+        while True:
+            _, otsu_binary_img = cv.threshold(cv.cvtColor(self.frames.get(), cv.COLOR_BGR2GRAY), 0, 255, cv.THRESH_BINARY_INV + cv.THRESH_OTSU)
+            opened_otsu_binary_img = cv.morphologyEx(otsu_binary_img, cv.MORPH_OPEN, (7, 7))
+            contours, _ = cv.findContours(opened_otsu_binary_img, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_TC89_L1)
+            try:
+                presumable_door_contour, area = _calc_max_contour_area(contours)
+            except ValueError:
+                continue
+            x, y, w, h = cv.boundingRect(presumable_door_contour)
+            disparity = cv.matchShapes(cv.imread("cross_standard.png"), opened_otsu_binary_img[y:y+h, x:x+w], cv.CONTOURS_MATCH_I1, 0)
+            if disparity < 0.1:
+                break
+
+        self.crossed_the_finish_line()  # FIXME: register a done callback
 
     @staticmethod  # FIXME: 自己设计 gait
     def _stance(x=0, y=0, z=-15, x_shift=2):  # 单位cm
