@@ -4,7 +4,6 @@ import time
 
 
 class PuppyPi(PreliminaryCompetitionStrategy):
-
     def __init__(self):
         super().__init__()
 

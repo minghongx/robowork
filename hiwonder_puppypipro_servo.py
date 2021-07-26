@@ -12,6 +12,7 @@ class PWMServos:
         Note: ID 12 为单目摄像头舵机
         """
         self.__id = pwm_servo_id
+        self.__pigpio = pigpio.pi()
 
     def set_pwm_servo_pulse(self, pulse: int):
         """
@@ -24,7 +25,7 @@ class PWMServos:
                 500 if pulse < 0 else \
                 2500
 
-        pigpio.pi().set_servo_pulsewidth(self.id, pulse)
+        self.__pigpio.set_servo_pulsewidth(self.id, pulse)
 
     @property
     def id(self):

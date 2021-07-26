@@ -1,7 +1,8 @@
-import functools
-from pathos.multiprocessing import ProcessPool, cpu_count
-from multiprocessing import Event, Queue
 from abc import ABC, abstractmethod
+from concurrent.futures import ThreadPoolExecutor
+from collections import deque
+from multiprocessing import Event
+import functools
 from time import sleep
 # from operator import methodcaller
 
@@ -53,41 +54,31 @@ class PreliminaryCompetitionRequirements(ABC):
         pass
 
 
-# def submit_to_the_pool(done_callback: str = None):
-#     def decorator(func):
-#         @functools.wraps(func)
-#         def wrapper(self, *args, **kwargs):
-#             if done_callback is None:
-#                 self.pool
-#             else:
-#                 callback = getattr(self, done_callback)
-#                 self.pool
-#             # if done_callback is None:
-#             #     self.executor.submit(func, self, *args, **kwargs)
-#             # callback = getattr(self, done_callback)
-#             # self.executor.submit(func, self, *args, **kwargs).add_done_callback(callback)
-#         return wrapper
-#     return decorator
-
-def submit_to_the_pool(func):
-    @functools.wraps(func)
-    def wrapper(instance, *args, **kwargs):
-        instance.pool.apipe(func, instance, *args, **kwargs)
-    return wrapper
+def submit_to_the_pool(done_callback: str = None):
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(instance, *args, **kwargs):
+            if done_callback is None:
+                instance.pool.submit(func, instance, *args, **kwargs)
+            else:
+                callback = getattr(instance, done_callback)
+                instance.pool.submit(func, instance, *args, **kwargs).add_done_callback(callback)
+        return wrapper
+    return decorator
 
 
 class PreliminaryCompetitionStrategy(PreliminaryCompetitionRequirements, Machine):
 
     def __enter__(self):
-        self.pool = ProcessPool(cpu_count()-1)
+        self.pool = ThreadPoolExecutor(max_workers=8)
         self.cap = cv.VideoCapture(0)
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self.pool.close()
-        self.pool.join()
-        self.cap.release()
+    def __exit__(self, exc_type, exc_val, exc_tb):  # FIXME: with 整块的代码逻辑不对
+        self.pool.shutdown()
+        self.cap.release(); print('camera released')
         cv.destroyAllWindows()
+        ActionGroups().unload()
 
     def __init__(self):
 
@@ -102,7 +93,7 @@ class PreliminaryCompetitionStrategy(PreliminaryCompetitionRequirements, Machine
         ]
         self.transitions = [
             {'trigger':'failed', 'source':'*', 'dest':'idle', 'after':'idle'},
-            {'trigger':'start', 'source':'idle', 'dest':'detect the blue pet door', 'before':'buffer_frames', 'after':['follow_the_30mm_black_line', 'detect_the_blue_pet_door']},
+            {'trigger':'start', 'source':'idle', 'dest':'detect the blue pet door', 'before':['buffer_frames', 'prepare'], 'after':['follow_the_30mm_black_line', 'detect_the_blue_pet_door']},
             {'trigger':'close_to_the_door', 'source':'detect the blue pet door', 'dest':'pass thru the blue pet door', 'after':'pass_thru_the_blue_pet_door'},
             {'trigger':'thru_the_door', 'source':'pass thru the blue pet door', 'dest':'detect the yellow demarcation line', 'after':'detect_the_yellow_demarcation_line'},
             {'trigger':'close_to_the_curb', 'source':'detect the yellow demarcation line', 'dest':'on the plate detect the yellow demarcation line', 'before':'climb_the_curb', 'after':'detect_the_yellow_demarcation_line'},
@@ -113,27 +104,29 @@ class PreliminaryCompetitionStrategy(PreliminaryCompetitionRequirements, Machine
 
         self.gait = PUPPY(setServoPulse=setBusServoPulse, servoParams=BusServoParams())  # FIXME: 自己设计 gait
         self.camera = PWMServos(12)  # TODO: encapsulate a Camera Class
-        self.frames = Queue(5)
+        self.frames = deque(maxlen=3)
         self.start_following_line = Event()
 
-    def idle(self):
+    def idle(self):  # FIXME
         self.start_following_line.clear()  # stop following line
         self.camera.set_pwm_servo_pulse(1500)
         ActionGroups.unload()  # unload servos to save power
 
-    # def prepare
+    @submit_to_the_pool()
+    def prepare(self):
+        self.gait.stance_config(self._stance(0, 0, -15, 2), pitch=0, roll=0)  # 标准站姿
+        self.gait.gait_config(overlap_time=0.1, swing_time=0.15, z_clearance=3)
+        self.gait.run()  # 启动
 
-    @submit_to_the_pool
+    @submit_to_the_pool()
     def buffer_frames(self):
         while True:
             ret, frame = self.cap.read()
             if not ret:
                 continue
-            if self.frames.full():
-                self.frames.get()  # imitating a double ended queue
-            self.frames.put(frame)
+            self.frames.append(frame)
 
-    @submit_to_the_pool
+    @submit_to_the_pool()
     def follow_the_30mm_black_line(self):  # FIXME: 自己设计 gait
 
         # FIXME
@@ -144,25 +137,38 @@ class PreliminaryCompetitionStrategy(PreliminaryCompetitionRequirements, Machine
         while True:
             self.start_following_line.wait()
 
-            px_deviation = row_of_pixels_method(self.frames.get(), 420)
+            try:
+                frame = self.frames.pop()
+            except IndexError:
+                continue
 
+            px_deviation = row_of_pixels_method(frame, 420)
             if abs(px_deviation) < 65:
+                print('go forward')
                 self.gait.move(x=12, y=0, yaw_rate=0)  # go forward
                 camera_position -= 27 if camera_position > 1600 else 0
                 self.camera.set_pwm_servo_pulse(camera_position)  # FIXME
             if px_deviation >= 65:
+                print('turn right')
                 self.gait.move(x=7, y=0, yaw_rate=-25 / 57.3)  # turn right
                 camera_position += 22 if camera_position < 2300 else 0
                 self.camera.set_pwm_servo_pulse(camera_position)  # FIXME
             if px_deviation <= -65:
+                print('turn left')
                 self.gait.move(x=7, y=0, yaw_rate=25 / 57.3)  # turn left
                 camera_position += 22 if camera_position < 2300 else 0
                 self.camera.set_pwm_servo_pulse(camera_position)  # FIXME
 
-    @submit_to_the_pool#(done_callback='close_to_the_door')
+    @submit_to_the_pool(done_callback='close_to_the_door')
     def detect_the_blue_pet_door(self):
         while True:
-            hsv = cv.cvtColor(self.frames.get(), cv.COLOR_BGR2HSV)
+
+            try:
+                frame = self.frames.pop()
+            except IndexError:
+                continue
+
+            hsv = cv.cvtColor(frame, cv.COLOR_BGR2HSV)
             blurred_hsv = cv.GaussianBlur(hsv, (3, 3), 3)
             blue = cv.inRange(blurred_hsv, (100, 70, 46), (124, 255, 255))
             opened_blue = cv.morphologyEx(blue, cv.MORPH_OPEN, (6, 6))
@@ -172,25 +178,30 @@ class PreliminaryCompetitionStrategy(PreliminaryCompetitionRequirements, Machine
             except ValueError:
                 continue
             x, y, w, h = cv.boundingRect(presumable_door_contour)
-            disparity = cv.matchShapes(cv.imread("pet_door_standard.jpg"), opened_blue[y:y+h, x:x+w], cv.CONTOURS_MATCH_I1, 0)
+            disparity = cv.matchShapes(
+                cv.cvtColor(cv.imread("pet_door_standard.jpg"), cv.COLOR_BGR2GRAY),
+                opened_blue[y:y+h, x:x+w],
+                cv.CONTOURS_MATCH_I1, 0)
             if disparity < 0.1:
                 break
 
-        self.close_to_the_door()  # FIXME: register a done callback
-
-    @submit_to_the_pool#(done_callback='thru_the_door')
+    @submit_to_the_pool(done_callback='thru_the_door')
     def pass_thru_the_blue_pet_door(self):  # FIXME: 自己设计 gait
         self.camera.set_pwm_servo_pulse(2100)
         self.gait.stance_config(self._stance(0, 0, -12, 2), pitch=0, roll=0)  # 趴下
         self.gait.gait_config(overlap_time=0.1, swing_time=0.15, z_clearance=2)
         sleep(10)
 
-        self.thru_the_door()  # FIXME: register a done callback
-
-    @submit_to_the_pool#(done_callback='close_to_the_curb')
+    @submit_to_the_pool(done_callback='close_to_the_curb')
     def detect_the_yellow_demarcation_line(self):
         while True:
-            hsv = cv.cvtColor(self.frames.get(), cv.COLOR_BGR2HSV)
+
+            try:
+                frame = self.frames.pop()
+            except IndexError:
+                continue
+
+            hsv = cv.cvtColor(frame, cv.COLOR_BGR2HSV)
             blurred_hsv = cv.GaussianBlur(hsv, (3, 3), 3)
             yellow = cv.inRange(blurred_hsv, (20, 44, 44), (38, 255, 255))
             opened_blue = cv.morphologyEx(yellow, cv.MORPH_OPEN, (6, 6))
@@ -204,7 +215,7 @@ class PreliminaryCompetitionStrategy(PreliminaryCompetitionRequirements, Machine
 
         self.close_to_the_curb()  # FIXME: register a done callback
 
-    @submit_to_the_pool
+    @submit_to_the_pool()
     def climb_the_curb(self):  # FIXME: 自己设计动作
         self.start_following_line.clear()
 
@@ -229,7 +240,7 @@ class PreliminaryCompetitionStrategy(PreliminaryCompetitionRequirements, Machine
 
         self.start_following_line.set()
 
-    @submit_to_the_pool
+    @submit_to_the_pool()
     def descend_the_curb(self):  # FIXME: 自己设计动作
         self.start_following_line.clear()
 
@@ -250,10 +261,16 @@ class PreliminaryCompetitionStrategy(PreliminaryCompetitionRequirements, Machine
 
         self.start_following_line.set()
 
-    @submit_to_the_pool#(done_callback='crossed_the_finish_line')
+    @submit_to_the_pool(done_callback='crossed_the_finish_line')
     def detect_the_black_cross(self):
         while True:
-            _, otsu_binary_img = cv.threshold(cv.cvtColor(self.frames.get(), cv.COLOR_BGR2GRAY), 0, 255, cv.THRESH_BINARY_INV + cv.THRESH_OTSU)
+
+            try:
+                frame = self.frames.pop()
+            except IndexError:
+                continue
+
+            _, otsu_binary_img = cv.threshold(cv.cvtColor(frame, cv.COLOR_BGR2GRAY), 0, 255, cv.THRESH_BINARY_INV + cv.THRESH_OTSU)
             opened_otsu_binary_img = cv.morphologyEx(otsu_binary_img, cv.MORPH_OPEN, (7, 7))
             contours, _ = cv.findContours(opened_otsu_binary_img, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_TC89_L1)
             try:
@@ -261,11 +278,12 @@ class PreliminaryCompetitionStrategy(PreliminaryCompetitionRequirements, Machine
             except ValueError:
                 continue
             x, y, w, h = cv.boundingRect(presumable_door_contour)
-            disparity = cv.matchShapes(cv.imread("cross_standard.png"), opened_otsu_binary_img[y:y+h, x:x+w], cv.CONTOURS_MATCH_I1, 0)
+            disparity = cv.matchShapes(
+                cv.cvtColor(cv.imread("cross_standard.png"), cv.COLOR_BGR2GRAY),
+                opened_otsu_binary_img[y:y+h, x:x+w],
+                cv.CONTOURS_MATCH_I1, 0)
             if disparity < 0.1:
                 break
-
-        self.crossed_the_finish_line()  # FIXME: register a done callback
 
     @staticmethod  # FIXME: 自己设计 gait
     def _stance(x=0, y=0, z=-15, x_shift=2):  # 单位cm
