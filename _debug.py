@@ -9,8 +9,9 @@ class PuppyPi(PreliminaryCompetitionStrategy):
 
 
 if __name__ == '__main__':
-    with PuppyPi() as puppypi:
-        puppypi.start()
+    puppypi = PuppyPi()
+    puppypi.start()
+    time.sleep(1000)
 
     # ActionGroups('actionGroups/calm.csv').do()
     # time.sleep(3)
