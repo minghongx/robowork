@@ -27,7 +27,8 @@ def unloadServo(id):
 
 
 def runActionGroup(num):
-    threading.Thread(target=AGC.runAction, args=(num, )).start()    
+    AGC.runAction(num)
+    # threading.Thread(target=AGC.runAction, args=(num, )).start()
 
 
 def stopActionGroup():    

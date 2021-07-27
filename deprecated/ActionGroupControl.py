@@ -34,7 +34,7 @@ def action_finish():
     global action_group_finish
     return action_group_finish  
 
-def runAction(actNum):
+def runAction(actNum: str):
     '''
     运行动作组，无法发送stop停止信号
     :param actNum: 动作组名字 ， 字符串类型
@@ -46,7 +46,7 @@ def runAction(actNum):
     global online_action_times
     if actNum is None:
         return
-    actNum = actNum + ".d6a"
+    actNum = "deprecated/" + actNum + ".d6a"
     stopRunning = False
     if os.path.exists(actNum) is True:
         if runningAction is False:
