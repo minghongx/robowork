@@ -58,12 +58,14 @@ class PreliminaryCompetitionRequirements(ABC):
 class PreliminaryCompetitionStrategy(PreliminaryCompetitionRequirements, Machine):
 
     def __enter__(self):
-        self._pool = ThreadPoolExecutor(max_workers=8)
 
         # TODO: encapsulate a Camera Class
         self.__cap = cv.VideoCapture(0)
         self.__camera = PWMServos(12)
         self.frames = deque(maxlen=1)
+
+        self._pool = ThreadPoolExecutor(max_workers=8)
+
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
@@ -84,7 +86,6 @@ class PreliminaryCompetitionStrategy(PreliminaryCompetitionRequirements, Machine
             {'name': 'on the plate detecting the yellow demarcation line'},
             {'name': 'descending the curb'},
             {'name': 'detecting the black cross'},
-            {'name': 'finished'},
         ]
         self.transitions = [
             {'trigger':'start', 'source':'idle', 'dest':'detecting the blue pet door', 'prepare':['prepare_gait', 'buffer_frames', 'print_state'], 'before':'detect_the_blue_pet_door', 'after':'follow_the_30mm_black_line'},
@@ -94,7 +95,7 @@ class PreliminaryCompetitionStrategy(PreliminaryCompetitionRequirements, Machine
             {'trigger':'climbed_the_curb', 'source':'climbing the curb', 'dest':'on the plate detecting the yellow demarcation line', 'before':'detect_the_yellow_demarcation_line', 'after':'follow_the_30mm_black_line'},
             {'trigger':'close_to_the_curb', 'source':'on the plate detecting the yellow demarcation line', 'dest':'descending the curb', 'prepare':'stop_line_following', 'after':'descend_the_curb'},
             {'trigger':'descended_the_curb', 'source':'descending the curb', 'dest':'detecting the black cross', 'before':'detect_the_black_cross', 'after':'follow_the_30mm_black_line'},
-            {'trigger':'crossed_the_finish_line', 'source':'detecting the black cross', 'dest':'finished', 'before':'finish'},
+            {'trigger':'crossed_the_finish_line', 'source':'detecting the black cross', 'dest':'idle', 'before':'finish'},
         ]
         Machine.__init__(self, states=self.states, transitions=self.transitions, initial='idle')
 
