@@ -10,6 +10,7 @@ from time import sleep
 # import psutil
 import numpy as np
 import cv2 as cv
+from mpu6050 import mpu6050
 from transitions import Machine
 
 from hiwonder_puppypipro_servo import PWMServos
@@ -60,9 +61,9 @@ class PreliminaryCompetitionStrategy(PreliminaryCompetitionRequirements, Machine
     def __enter__(self):
 
         # TODO: encapsulate a Camera Class
-        self.__cap = cv.VideoCapture(0)
+        self.__cap = cv.VideoCapture(-1)
         self.__camera = PWMServos(12)
-        self.frames = deque(maxlen=1)
+        self.frames = deque(maxlen=2)
 
         self._pool = ThreadPoolExecutor(max_workers=8)
 
@@ -88,7 +89,7 @@ class PreliminaryCompetitionStrategy(PreliminaryCompetitionRequirements, Machine
             {'name': 'detecting the black cross'},
         ]
         self.transitions = [
-            {'trigger':'start', 'source':'idle', 'dest':'detecting the blue pet door', 'prepare':['prepare_gait', 'buffer_frames', 'print_state'], 'before':'detect_the_blue_pet_door', 'after':'follow_the_30mm_black_line'},
+            {'trigger':'start', 'source':'idle', 'dest':'detecting the blue pet door', 'prepare':['prepare', 'buffer_frames', 'print_state'], 'before':'detect_the_blue_pet_door', 'after':'follow_the_30mm_black_line'},
             {'trigger':'close_to_the_door', 'source':'detecting the blue pet door', 'dest':'passing thru the blue pet door', 'before':'pass_thru_the_blue_pet_door'},
             {'trigger':'thru_the_door', 'source':'passing thru the blue pet door', 'dest':'detecting the yellow demarcation line', 'before':'detect_the_yellow_demarcation_line'},
             {'trigger':'close_to_the_curb', 'source':'detecting the yellow demarcation line', 'dest':'climbing the curb', 'prepare':'stop_line_following', 'after':'climb_the_curb'},
@@ -117,7 +118,7 @@ class PreliminaryCompetitionStrategy(PreliminaryCompetitionRequirements, Machine
             return types.MethodType(self, obj)  # Accessed from instance, bind to instance
 
     @submit_to_the_pool
-    def prepare_gait(self):  # TODO: 自己设计 gait
+    def prepare(self):  # TODO: 自己设计 gait
         self.__gait.stance_config(self._stance(0, 0, -15, 2), pitch=0, roll=0)  # 标准站姿
         self.__gait.gait_config(overlap_time=0.1, swing_time=0.15, z_clearance=3)
         self.__gait.run()  # 启动
@@ -154,16 +155,22 @@ class PreliminaryCompetitionStrategy(PreliminaryCompetitionRequirements, Machine
                 continue
 
             try:
-                px_deviation = row_of_pixels_method(frame, 460)
+                if self.__camera.pulsewidth is None:
+                    continue
+                if self.__camera.pulsewidth >= 2200:
+                    px_deviation = row_of_pixels_method(frame, 300)
+                else:
+                    px_deviation = row_of_pixels_method(frame, 479)
             except RuntimeError:
                 continue
 
             if abs(px_deviation) < 60:
-                self.__gait.move(x=12, y=0, yaw_rate=0)  # go forward
+                self.__gait.move(x=12, y=0, yaw_rate=0)          # go forward
             if px_deviation >= 60:
                 self.__gait.move(x=7, y=0, yaw_rate=-25 / 57.3)  # turn right
             if px_deviation <= -60:
-                self.__gait.move(x=7, y=0, yaw_rate=25 / 57.3)  # turn left
+                self.__gait.move(x=7, y=0, yaw_rate=25 / 57.3)   # turn left
+
         self.__gait.move_stop()
 
     @submit_to_the_pool
@@ -199,7 +206,7 @@ class PreliminaryCompetitionStrategy(PreliminaryCompetitionRequirements, Machine
         sleep(2.5)
         self.__gait.stance_config(self._stance(0, 0, -12, 2), pitch=0, roll=0)  # 趴下
         self.__gait.gait_config(overlap_time=0.1, swing_time=0.15, z_clearance=2)
-        sleep(9)
+        sleep(8)
         self.__gait.stance_config(self._stance(0, 0, -15, 2), pitch=0, roll=0)  # 过完门站起来.
 
         self.__camera.set_pwm_servo_pulse(2300)
@@ -226,15 +233,14 @@ class PreliminaryCompetitionStrategy(PreliminaryCompetitionRequirements, Machine
                 _, area = _calc_max_contour_area(contours)
             except ValueError:
                 continue
-            print(area)
-            if area > 200000:
+
+            if area > 160000:
                 break
         self.close_to_the_curb()
 
     @submit_to_the_pool
     def climb_the_curb(self):  # TODO: 自己设计动作
         runActionGroup('coord_up_stair_1')
-        sleep(8)
         self.__gait.stance_config(self._stance(0, 0, -13, -4), pitch=-20 / 57.3, roll=0)
         self.__gait.gait_config(overlap_time=0.2, swing_time=0.4, z_clearance=2)
         self.__gait.move_stop()
@@ -252,8 +258,12 @@ class PreliminaryCompetitionStrategy(PreliminaryCompetitionRequirements, Machine
 
     @submit_to_the_pool
     def descend_the_curb(self):  # TODO: 自己设计动作
+
+        self.follow_the_30mm_black_line()
+        sleep(1)
+        self.line_following_stopped.set()
+
         runActionGroup('coord_down_stair')
-        sleep(8)
         self.__gait.stance_config(self._stance(0, 0, -13, 4), pitch=20 / 57.3, roll=0)
         self.__gait.gait_config(overlap_time=0.1, swing_time=0.2, z_clearance=2)
         self.__gait.move_stop()
@@ -288,12 +298,14 @@ class PreliminaryCompetitionStrategy(PreliminaryCompetitionRequirements, Machine
                 continue
             x, y, w, h = cv.boundingRect(presumable_door_contour)
             disparity = cv.matchShapes(shape, opened_otsu_binary_img[y:y+h, x:x+w], cv.CONTOURS_MATCH_I1, 0)
-            if disparity < 0.003 and area > 200000:
+
+            if disparity < 0.003 and area > 120000:
                 break
         self.crossed_the_finish_line()
 
     @submit_to_the_pool
     def finish(self):
+        sleep(5)  # crossed finish line after 5s
         self.finished.set()
 
     @staticmethod

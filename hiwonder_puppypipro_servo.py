@@ -11,26 +11,31 @@ class PWMServos:
         扩展板上 2 --> ID 13
         Note: ID 12 为单目摄像头舵机
         """
-        self.__id = pwm_servo_id
         self.__pigpio = pigpio.pi()
+        self.__id = pwm_servo_id
+        self.__pulsewidth = None
 
-    def set_pwm_servo_pulse(self, pulse: int):
+    def set_pwm_servo_pulse(self, pulsewidth: int):
         """
         驱动 PWM servo 转到指定角度
-        :param pulse: PWM 脉宽  note: 舵机的转动范围 0-180deg，对应的脉宽为 500-2500us
+        :param pulsewidth: PWM 脉宽  note: 舵机的转动范围 0-180deg，对应的脉宽为 500-2500us
         """
 
         # Boundary limits validation
-        pulse = pulse if pulse in range(500, 2500) else \
-                500 if pulse < 0 else \
+        pulsewidth = pulsewidth if pulsewidth in range(500, 2500) else \
+                500 if pulsewidth < 0 else \
                 2500
 
-        self.__pigpio.set_servo_pulsewidth(self.id, pulse)
+        self.__pulsewidth = pulsewidth
+        self.__pigpio.set_servo_pulsewidth(self.id, pulsewidth)
 
     @property
     def id(self):
         return self.__id
 
+    @property
+    def pulsewidth(self):
+        return self.__pulsewidth
 
 # FIXME: Serial bus servo ID 0-235 用户可设置. 舵机 ID 是否输入正确每个函数都没有校验
 
