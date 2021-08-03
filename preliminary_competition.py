@@ -122,6 +122,7 @@ class PreliminaryCompetitionStrategy(PreliminaryCompetitionRequirements, Machine
         self.__gait.stance_config(self._stance(0, 0, -15, 2), pitch=0, roll=0)  # 标准站姿
         self.__gait.gait_config(overlap_time=0.1, swing_time=0.15, z_clearance=3)
         self.__gait.run()  # 启动
+
         self.__camera.set_pwm_servo_pulse(1600)
 
     @submit_to_the_pool
