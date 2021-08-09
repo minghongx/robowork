@@ -23,10 +23,11 @@ def row_of_pixels_method(frame, ordinate: int) -> int:
 
     # Assume 一行像素中最长的白色部分是被巡线. 计算它中点像素的横坐标
     a_row_of_pixels = opened_otsu_binary_img[ordinate]
-    white_pixel_abscissas = [abscissa for abscissa, intensity in enumerate(a_row_of_pixels) if intensity == 255]
+    white_pixel_abscissas = [ abscissa for abscissa, intensity in enumerate(a_row_of_pixels)
+                                       if intensity == 255 ]
     if not white_pixel_abscissas:
         raise RuntimeError('Maybe the camera does not capture the line')
-    consecutive_abscissas = [list(map(itemgetter(1), group)) for key, group in groupby(enumerate(white_pixel_abscissas), lambda _: _[1]-_[0])]  # 通过将数字与其 index 相减作为 key, 把数组中连续递增 1 的部分分成一组
+    consecutive_abscissas = [list(map(itemgetter(1), group)) for key, group in groupby( enumerate(white_pixel_abscissas), lambda _: _[1]-_[0] )]  # 通过将数字与其 index 相减作为 key, 把数组中连续递增 1 的部分分成一组
     presumable_line_abscissas = builtins.max(consecutive_abscissas, key=len)  # The longest white is of interest
     presumable_line_centre_abscissa = int((presumable_line_abscissas[0]+presumable_line_abscissas[-1])/2)
 

@@ -10,19 +10,18 @@ from time import sleep
 # import psutil
 import numpy as np
 import cv2 as cv
-from mpu6050 import mpu6050
 from transitions import Machine
 
 from hiwonder_puppypipro_servo import PWMServos
 from locomotion_control import ActionGroups
 from line_following_methods import row_of_pixels_method
+from object_detection_methods import _calc_max_contour_area
 
-from developing.object_detection_methods import _calc_max_contour_area
-
+# from vendor.mpu6050 import mpu6050
 # TODO: Obsolete these modules
-from deprecated.HiwonderPuppy import PUPPY, BusServoParams
-from deprecated.ServoCmd import runActionGroup
-from deprecated.BusServoControl import setBusServoPulse
+from vendor.deprecated.HiwonderPuppy import PUPPY, BusServoParams
+from vendor.deprecated.ServoCmd import runActionGroup
+from vendor.deprecated.BusServoControl import setBusServoPulse
 
 
 class PreliminaryCompetitionRequirements(ABC):
@@ -89,7 +88,7 @@ class PreliminaryCompetitionStrategy(PreliminaryCompetitionRequirements, Machine
             {'name': 'detecting the black cross'},
         ]
         self.transitions = [
-            {'trigger':'start', 'source':'idle', 'dest':'detecting the blue pet door', 'prepare':['prepare', 'buffer_frames', 'print_state'], 'before':'detect_the_blue_pet_door', 'after':'follow_the_30mm_black_line'},
+            {'trigger':'start', 'source':'idle', 'dest':'detecting the blue pet door', 'prepare':['setup', 'buffer_frames', 'print_state'], 'before':'detect_the_blue_pet_door', 'after':'follow_the_30mm_black_line'},
             {'trigger':'close_to_the_door', 'source':'detecting the blue pet door', 'dest':'passing thru the blue pet door', 'before':'pass_thru_the_blue_pet_door'},
             {'trigger':'thru_the_door', 'source':'passing thru the blue pet door', 'dest':'detecting the yellow demarcation line', 'before':'detect_the_yellow_demarcation_line'},
             {'trigger':'close_to_the_curb', 'source':'detecting the yellow demarcation line', 'dest':'climbing the curb', 'prepare':'stop_line_following', 'after':'climb_the_curb'},
@@ -118,7 +117,7 @@ class PreliminaryCompetitionStrategy(PreliminaryCompetitionRequirements, Machine
             return types.MethodType(self, obj)  # Accessed from instance, bind to instance
 
     @submit_to_the_pool
-    def prepare(self):  # TODO: 自己设计 gait
+    def setup(self):  # TODO: 自己设计 gait
         self.__gait.stance_config(self._stance(0, 0, -15, 2), pitch=0, roll=0)  # 标准站姿
         self.__gait.gait_config(overlap_time=0.1, swing_time=0.15, z_clearance=3)
         self.__gait.run()  # 启动
@@ -176,7 +175,7 @@ class PreliminaryCompetitionStrategy(PreliminaryCompetitionRequirements, Machine
 
     @submit_to_the_pool
     def detect_the_blue_pet_door(self):
-        shape = cv.cvtColor(cv.imread("pet_door_standard.jpg"), cv.COLOR_BGR2GRAY)
+        shape = cv.cvtColor(cv.imread("object_shapes/pet_door.jpg"), cv.COLOR_BGR2GRAY)
         while True:
 
             sleep(0.1)
@@ -280,7 +279,7 @@ class PreliminaryCompetitionStrategy(PreliminaryCompetitionRequirements, Machine
 
     @submit_to_the_pool
     def detect_the_black_cross(self):
-        shape = cv.cvtColor(cv.imread("cross_standard.png"), cv.COLOR_BGR2GRAY)
+        shape = cv.cvtColor(cv.imread("object_shapes/cross.png"), cv.COLOR_BGR2GRAY)
         while True:
 
             sleep(0.1)

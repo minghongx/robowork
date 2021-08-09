@@ -46,7 +46,7 @@ def runAction(actNum: str):
     global online_action_times
     if actNum is None:
         return
-    actNum = "deprecated/" + actNum + ".d6a"
+    actNum = "vendor/deprecated/" + actNum + ".d6a"
     stopRunning = False
     if os.path.exists(actNum) is True:
         if runningAction is False:
