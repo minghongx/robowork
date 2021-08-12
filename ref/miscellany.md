@@ -6,23 +6,6 @@
 
 [How to execute a program or call a system command from within a Python script?](https://stackoverflow.com/questions/89228/how-to-execute-a-program-or-call-a-system-command)
 
-[import 问题浅谈](https://zhuanlan.zhihu.com/p/69099185)
-
-[史上最详细的包和模块import讲解篇](https://jishuin.proginn.com/p/763bfbd22f68)
-
-[ModuleNotFoundError: No module named](https://www.cnblogs.com/yifanrensheng/p/13979064.html)
-
-> [What's wrong with relative imports in Python?](https://softwareengineering.stackexchange.com/questions/159503/whats-wrong-with-relative-imports-in-python)
->
-> Note you can also do import .icing instead of from . import icing
->
-> I don't think you can. From this part of PEP328:
-> Relative imports must always use from <> import ; import <> is always absolute.
-> Of course, absolute imports can use from <> import by omitting the leading dots.
-> The reason import .foo is prohibited is because after import XXX.YYY.ZZZ then XXX.YYY.ZZZ is usable in an expression,
-> but .moduleY is not usable in an expression.
-
-
 > It’s important to keep in mind that all packages are modules, but not all modules are packages. 
 > Or put another way, packages are just a special kind of module. 
 > Specifically, any module that contains a \_\_path__ attribute is considered a package.
@@ -41,10 +24,25 @@
 
 [Inviting collaborators to a personal repository](https://docs.github.com/github/setting-up-and-managing-your-github-user-account/managing-access-to-your-personal-repositories/inviting-collaborators-to-a-personal-repository)
 
-[IntelliJ IDEA. Share a Project on GitHub](https://www.youtube.com/watch?v=4ukhZvOmAtk&ab_channel=IntelliJIDEAbyJetBrains)
+[IntelliJ IDEA. Share a Project on GitHub](https://www.youtube.com/watch?v=4ukhZvOmAtk&ab_channel=IntelliJIDEAbyJetBrains), [Sharing Your Project on GitHub](https://blog.jetbrains.com/idea/2020/11/sharing-your-project-on-github/), [IntelliJ AppCode Version control](https://www.jetbrains.com/objc/features/version-control.html)
 
-[Sharing Your Project on GitHub](https://blog.jetbrains.com/idea/2020/11/sharing-your-project-on-github/)
+[Renaming projects](https://www.jetbrains.com/help/pycharm/renaming-projects.html)
 
-[IntelliJ AppCode Version control](https://www.jetbrains.com/objc/features/version-control.html)
+[import 问题浅谈](https://zhuanlan.zhihu.com/p/69099185)
 
-[IntelliJ IDEA. GitHub Pull Requests](https://www.youtube.com/watch?v=MoXxF3aWW8k&ab_channel=IntelliJIDEAbyJetBrains)
+[史上最详细的包和模块import讲解篇](https://jishuin.proginn.com/p/763bfbd22f68)
+
+[ModuleNotFoundError: No module named](https://www.cnblogs.com/yifanrensheng/p/13979064.html)
+
+> [What's wrong with relative imports in Python?](https://softwareengineering.stackexchange.com/questions/159503/whats-wrong-with-relative-imports-in-python)
+>
+> Note you can also do import .icing instead of from . import icing
+>
+> I don't think you can. From this part of PEP328:
+> Relative imports must always use from <> import ; import <> is always absolute.
+> Of course, absolute imports can use from <> import by omitting the leading dots.
+> The reason import .foo is prohibited is because after import XXX.YYY.ZZZ then XXX.YYY.ZZZ is usable in an expression,
+> but .moduleY is not usable in an expression.
+
+[Pycharm adds the root of current project to python's path so that module can be imported](https://stackoverflow.com/questions/46354454/modulenotfounderror-error-with-pycharm-project-folder-recs)
+

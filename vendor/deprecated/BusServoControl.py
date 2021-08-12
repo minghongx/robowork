@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
-import os
 import sys
 import time
 import RPi.GPIO as GPIO
-from .BusServoCmd import *
+from vendor.deprecated.BusServoCmd import *
 from smbus2 import SMBus, i2c_msg
 
 #幻尔科技raspberrypi扩展板sdk#

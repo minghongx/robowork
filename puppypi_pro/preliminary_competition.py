@@ -1,27 +1,26 @@
 import types
 # import functools
+# from operator import methodcaller
 from abc import ABC, abstractmethod
 from concurrent.futures import ThreadPoolExecutor
 from collections import deque
 from multiprocessing import Event
 from time import sleep
-# from operator import methodcaller
 
 # import psutil
 import numpy as np
 import cv2 as cv
 from transitions import Machine
 
-from hiwonder_puppypipro_servo import PWMServos
-from locomotion_control import ActionGroups
-from line_following_methods import row_of_pixels_method
-from object_detection_methods import _calc_max_contour_area
-
-# from vendor.mpu6050 import mpu6050
-# TODO: Obsolete these modules
-from vendor.deprecated.HiwonderPuppy import PUPPY, BusServoParams
+# from vendor.mpu6050.mpu6050 import mpu6050
+from vendor.deprecated.HiwonderPuppy import PUPPY, BusServoParams  # TODO: Obsolete these modules
 from vendor.deprecated.ServoCmd import runActionGroup
 from vendor.deprecated.BusServoControl import setBusServoPulse
+
+from puppypi_pro.hiwonder_puppypipro_servo import PWMServos
+from puppypi_pro.locomotion_control import ActionGroups
+from puppypi_pro.line_following_methods import row_of_pixels_method
+from puppypi_pro.object_detection_methods import _calc_max_contour_area
 
 
 class PreliminaryCompetitionRequirements(ABC):
@@ -322,5 +321,5 @@ class PreliminaryCompetitionStrategy(PreliminaryCompetitionRequirements, Machine
 Ref
 curb and kerb
 add_done_callback(fn)：为该 Future 代表的线程任务注册一个“回调函数”，当该任务成功完成时，程序会自动触发该 fn 函数。
-https://docs.python.org/zh-cn/3/library/multiprocessing.html#multiprocessing.pool.Pool.terminate
+
 '''

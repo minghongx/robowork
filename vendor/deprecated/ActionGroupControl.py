@@ -2,12 +2,11 @@
 # encoding: utf-8
 import threading
 import sqlite3 as sql
-import sys
 
 import numpy as np
 
-from .BusServoControl import *
-from .HiwonderPuppy import PUPPY, BusServoParams
+from vendor.deprecated.BusServoControl import *
+from vendor.deprecated.HiwonderPuppy import PUPPY, BusServoParams
 
 puppy = PUPPY(setServoPulse = setBusServoPulse, servoParams = BusServoParams())
 
