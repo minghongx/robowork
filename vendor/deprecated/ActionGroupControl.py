@@ -2,8 +2,9 @@
 # encoding: utf-8
 import threading
 import sqlite3 as sql
-
+from pathlib import Path
 import numpy as np
+
 
 from vendor.deprecated.BusServoControl import *
 from vendor.deprecated.HiwonderPuppy import PUPPY, BusServoParams
@@ -45,10 +46,12 @@ def runAction(actNum: str):
     global online_action_times
     if actNum is None:
         return
-    actNum = "vendor/deprecated/" + actNum + ".d6a"
+    actNum = str(Path(__file__).parent) +"/"+ actNum + ".d6a"
     stopRunning = False
-    if os.path.exists(actNum) is True:
+    if Path(actNum).exists() is True:
+        print('a')
         if runningAction is False:
+            print('b')
             runningAction = True
             ag = sql.connect(actNum)
             cu = ag.cursor()
@@ -126,3 +129,6 @@ def change_action_value(actNum, actTimes):
         online_action_num = actNum
         stopRunning = False
         update_ok = True
+
+if __name__ =="__main__":
+    print(Path(str(Path(__file__).parent) +'/'+ 'coord_up_stair_1' + ".d6a").exists())

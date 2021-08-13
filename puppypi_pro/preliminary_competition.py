@@ -6,6 +6,7 @@ from concurrent.futures import ThreadPoolExecutor
 from collections import deque
 from multiprocessing import Event
 from time import sleep
+from pathlib import Path
 
 # import psutil
 import numpy as np
@@ -174,7 +175,7 @@ class PreliminaryCompetitionStrategy(PreliminaryCompetitionRequirements, Machine
 
     @submit_to_the_pool
     def detect_the_blue_pet_door(self):
-        shape = cv.cvtColor(cv.imread("object_shapes/pet_door.jpg"), cv.COLOR_BGR2GRAY)
+        shape = cv.imread(str(Path(__file__).parent/'object_shapes/pet_door.jpg'), cv.IMREAD_GRAYSCALE)
         while True:
 
             sleep(0.1)
@@ -278,7 +279,7 @@ class PreliminaryCompetitionStrategy(PreliminaryCompetitionRequirements, Machine
 
     @submit_to_the_pool
     def detect_the_black_cross(self):
-        shape = cv.cvtColor(cv.imread("object_shapes/cross.png"), cv.COLOR_BGR2GRAY)
+        shape = cv.imread(str(Path(__file__).parent/'object_shapes/cross.png'), cv.IMREAD_GRAYSCALE)
         while True:
 
             sleep(0.1)
