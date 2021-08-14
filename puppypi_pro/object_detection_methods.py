@@ -1,6 +1,7 @@
 import cv2 as cv
 
-# def
+
+# TODO: use Machine Learning
 
 
 def _calc_max_contour_area(contours):

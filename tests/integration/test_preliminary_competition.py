@@ -7,5 +7,6 @@ class PuppyPi(PreliminaryCompetitionStrategy):
 
 
 with PuppyPi() as puppypi:
+    puppypi.setup()
     puppypi.start()
     puppypi.finished.wait()
