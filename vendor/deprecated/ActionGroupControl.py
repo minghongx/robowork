@@ -49,9 +49,7 @@ def runAction(actNum: str):
     actNum = str(Path(__file__).parent) +"/"+ actNum + ".d6a"
     stopRunning = False
     if Path(actNum).exists() is True:
-        print('a')
         if runningAction is False:
-            print('b')
             runningAction = True
             ag = sql.connect(actNum)
             cu = ag.cursor()
@@ -129,6 +127,3 @@ def change_action_value(actNum, actTimes):
         online_action_num = actNum
         stopRunning = False
         update_ok = True
-
-if __name__ =="__main__":
-    print(Path(str(Path(__file__).parent) +'/'+ 'coord_up_stair_1' + ".d6a").exists())
