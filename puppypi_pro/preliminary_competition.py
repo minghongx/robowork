@@ -1,5 +1,4 @@
-import types
-# import functools
+import functools
 # from operator import methodcaller
 from abc import ABC, abstractmethod
 from concurrent.futures import ThreadPoolExecutor
@@ -59,7 +58,7 @@ class PreliminaryCompetitionStrategy(PreliminaryCompetitionRequirements, Machine
 
     def __enter__(self):
 
-        # TODO: encapsulate a Camera Class
+        # TODO: encapsulate them into a Camera Class
         self.__cap = cv.VideoCapture(-1)
         self.__camera = PWMServos(12)
         self.frames = deque(maxlen=2)
@@ -100,53 +99,53 @@ class PreliminaryCompetitionStrategy(PreliminaryCompetitionRequirements, Machine
             {'trigger':'descended_the_curb', 'source':'descending the curb', 'dest':'detecting the black cross', 'before':'detect_the_black_cross', 'after':'follow_the_30mm_black_line'},
             {'trigger':'crossed_the_finish_line', 'source':'detecting the black cross', 'dest':'idle', 'before':'finish'},
         ]
-        Machine.__init__(self, states=self.states, transitions=self.transitions, initial='idle')
+        Machine.__init__(self, states=self.states, transitions=self.transitions, initial='idle', send_event=True)
 
         self.__gait = PUPPY(setServoPulse=setBusServoPulse, servoParams=BusServoParams())  # TODO: 自己设计 gait
 
         self.line_following_stopped = Event()
         self.finished = Event()
 
-    class submit_to_the_pool:
-        def __init__(self, func):
-            self.func = func
+    def submit_to_the_pool(done_callback: str = None):
+        def decorator(func):
+            @functools.wraps(func)
+            def wrapper(obj, *args, **kwargs):
+                if done_callback is None:
+                    obj._pool.submit(func, obj, *args, **kwargs)
+                else:
+                    callback = getattr(obj, done_callback)
+                    obj._pool.submit(func, obj, *args, **kwargs).add_done_callback(callback)
+            return wrapper
+        return decorator
 
-        def __call__(self, obj, *args, **kwargs):
-            obj._pool.submit(self.func, obj, *args, **kwargs)
-
-        def __get__(self, obj, cls):
-            if obj is None:
-                return self  # Accessed from class, return unchanged
-            return types.MethodType(self, obj)  # Accessed from instance, bind to instance
-
-    @submit_to_the_pool
-    def initiate(self):  # TODO: 自己设计 gait
+    @submit_to_the_pool()
+    def initiate(self, event):  # TODO: 自己设计 gait
         self.__gait.stance_config(self._stance(0, 0, -15, 2), pitch=0, roll=0)  # 标准站姿
         self.__gait.gait_config(overlap_time=0.1, swing_time=0.15, z_clearance=3)
         self.__gait.run()  # 启动
 
         self.__camera.set_pwm_servo_pulse(1600)
 
-    @submit_to_the_pool
-    def print_state(self):
+    @submit_to_the_pool()
+    def print_state(self, event):
         while not self.finished.is_set():
             print(self.state)
             sleep(3)
 
-    @submit_to_the_pool
-    def buffer_frames(self):
+    @submit_to_the_pool()
+    def buffer_frames(self, event):
         while not self.finished.is_set():
             ret, frame = self.__cap.read()
             if not ret:
                 continue
             self.frames.append(frame)
 
-    @submit_to_the_pool
-    def stop_line_following(self):
+    @submit_to_the_pool()
+    def stop_line_following(self, event):
         self.line_following_stopped.set()
 
-    @submit_to_the_pool
-    def follow_the_30mm_black_line(self):  # TODO: 自己设计 gait
+    @submit_to_the_pool()
+    def follow_the_30mm_black_line(self, event):  # TODO: 自己设计 gait
         self.line_following_stopped.clear()
         while not self.finished.is_set() and not self.line_following_stopped.is_set():
 
@@ -176,8 +175,8 @@ class PreliminaryCompetitionStrategy(PreliminaryCompetitionRequirements, Machine
 
         self.__gait.move_stop()
 
-    @submit_to_the_pool
-    def detect_the_blue_pet_door(self):
+    @submit_to_the_pool(done_callback='close_to_the_door')
+    def detect_the_blue_pet_door(self, event):
         shape = cv.imread(str(Path(__file__).parent/'object_shapes/pet_door.jpg'), cv.IMREAD_GRAYSCALE)  # The image should be in the working directory or a full path of image should be given.
         while not self.finished.is_set():
 
@@ -202,10 +201,9 @@ class PreliminaryCompetitionStrategy(PreliminaryCompetitionRequirements, Machine
 
             if disparity < 0.003 and area > 60000:
                 break
-        self.close_to_the_door()
 
-    @submit_to_the_pool
-    def pass_thru_the_blue_pet_door(self):  # TODO: 自己设计 gait
+    @submit_to_the_pool(done_callback='thru_the_door')
+    def pass_thru_the_blue_pet_door(self, event):  # TODO: 自己设计 gait
         sleep(2.5)  # FIXME: 判断非常接近门的愚蠢标准
         self.__gait.stance_config(self._stance(0, 0, -12, 2), pitch=0, roll=0)  # 趴下
         self.__gait.gait_config(overlap_time=0.1, swing_time=0.15, z_clearance=2)
@@ -214,10 +212,8 @@ class PreliminaryCompetitionStrategy(PreliminaryCompetitionRequirements, Machine
 
         self.__camera.set_pwm_servo_pulse(2300)
 
-        self.thru_the_door()
-
-    @submit_to_the_pool
-    def detect_the_yellow_demarcation_line(self):
+    @submit_to_the_pool(done_callback='close_to_the_curb')
+    def detect_the_yellow_demarcation_line(self, event):
         while not self.finished.is_set():
 
             sleep(0.1)
@@ -239,10 +235,9 @@ class PreliminaryCompetitionStrategy(PreliminaryCompetitionRequirements, Machine
 
             if area > 160000:
                 break
-        self.close_to_the_curb()
 
-    @submit_to_the_pool
-    def climb_the_curb(self):  # TODO: 自己设计动作
+    @submit_to_the_pool(done_callback='climbed_the_curb')
+    def climb_the_curb(self, event):  # TODO: 自己设计动作
         runActionGroup('coord_up_stair_1')
         self.__gait.stance_config(self._stance(0, 0, -13, -4), pitch=-20 / 57.3, roll=0)
         self.__gait.gait_config(overlap_time=0.2, swing_time=0.4, z_clearance=2)
@@ -257,10 +252,8 @@ class PreliminaryCompetitionStrategy(PreliminaryCompetitionRequirements, Machine
         self.__gait.move_stop()
         sleep(0.2)
 
-        self.climbed_the_curb()
-
-    @submit_to_the_pool
-    def descend_the_curb(self):  # TODO: 自己设计动作
+    @submit_to_the_pool(done_callback='descended_the_curb')
+    def descend_the_curb(self, event):  # TODO: 自己设计动作
 
         # FIXME: 因为判断是否足够接近 curb 的标准不够好，所以只能勉强机器重新巡线向前走 1s，再开始下 curb。
         self.follow_the_30mm_black_line()
@@ -279,10 +272,8 @@ class PreliminaryCompetitionStrategy(PreliminaryCompetitionRequirements, Machine
         self.__gait.move_stop()
         sleep(0.2)
 
-        self.descended_the_curb()
-
-    @submit_to_the_pool
-    def detect_the_black_cross(self):
+    @submit_to_the_pool(done_callback='crossed_the_finish_line')
+    def detect_the_black_cross(self, event):
         shape = cv.imread(str(Path(__file__).parent/'object_shapes/cross.png'), cv.IMREAD_GRAYSCALE)
         while not self.finished.is_set():
 
@@ -305,10 +296,9 @@ class PreliminaryCompetitionStrategy(PreliminaryCompetitionRequirements, Machine
 
             if disparity < 0.003 and area > 120000:
                 break
-        self.crossed_the_finish_line()
 
-    @submit_to_the_pool
-    def finish(self):
+    @submit_to_the_pool()
+    def finish(self, event):
         sleep(5)  # FIXME: 判断全身都通过终点线的愚蠢标准
         self.finished.set()
 
