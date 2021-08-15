@@ -4,7 +4,7 @@ import copy
 import numpy as np
 import pandas as pd
 
-from hiwonder_puppypipro_servo import *
+from puppypi_pro.hiwonder_puppypipro_servo import *
 
 
 class ActionGroups:

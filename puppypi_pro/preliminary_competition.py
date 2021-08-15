@@ -1,28 +1,27 @@
 import types
 # import functools
+# from operator import methodcaller
 from abc import ABC, abstractmethod
 from concurrent.futures import ThreadPoolExecutor
 from collections import deque
 from multiprocessing import Event
 from time import sleep
-# from operator import methodcaller
+from pathlib import Path
 
 # import psutil
 import numpy as np
 import cv2 as cv
-from mpu6050 import mpu6050
 from transitions import Machine
 
-from hiwonder_puppypipro_servo import PWMServos
-from locomotion_control import ActionGroups
-from line_following_methods import row_of_pixels_method
+# from vendor.mpu6050.mpu6050 import mpu6050
+from vendor.deprecated.HiwonderPuppy import PUPPY, BusServoParams  # TODO: Obsolete these modules
+from vendor.deprecated.ServoCmd import runActionGroup
+from vendor.deprecated.BusServoControl import setBusServoPulse
 
-from developing.object_detection_methods import _calc_max_contour_area
-
-# TODO: Obsolete these modules
-from deprecated.HiwonderPuppy import PUPPY, BusServoParams
-from deprecated.ServoCmd import runActionGroup
-from deprecated.BusServoControl import setBusServoPulse
+from puppypi_pro.hiwonder_puppypipro_servo import PWMServos
+from puppypi_pro.locomotion_control import ActionGroups
+from puppypi_pro.line_following_methods import row_of_pixels_method
+from puppypi_pro.object_detection_methods import _calc_max_contour_area
 
 
 class PreliminaryCompetitionRequirements(ABC):
@@ -70,6 +69,7 @@ class PreliminaryCompetitionStrategy(PreliminaryCompetitionRequirements, Machine
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
+        self.finished.set()  # 确保意外退出 with-statement 时带有循环体的线程能全部结束并最终回收资源
         self._pool.shutdown()
         self.__cap.release()
         cv.destroyAllWindows()
@@ -80,6 +80,7 @@ class PreliminaryCompetitionStrategy(PreliminaryCompetitionRequirements, Machine
         # Finite State Machine
         self.states = [
             {'name': 'idle'},
+            {'name': 'ready'},
             {'name': 'detecting the blue pet door'},
             {'name': 'passing thru the blue pet door'},
             {'name': 'detecting the yellow demarcation line'},
@@ -89,7 +90,8 @@ class PreliminaryCompetitionStrategy(PreliminaryCompetitionRequirements, Machine
             {'name': 'detecting the black cross'},
         ]
         self.transitions = [
-            {'trigger':'start', 'source':'idle', 'dest':'detecting the blue pet door', 'prepare':['prepare', 'buffer_frames', 'print_state'], 'before':'detect_the_blue_pet_door', 'after':'follow_the_30mm_black_line'},
+            {'trigger':'setup', 'source':'idle', 'dest':'ready', 'prepare':'initiate', 'before':'buffer_frames'},
+            {'trigger':'start', 'source':'ready', 'dest':'detecting the blue pet door', 'prepare':'print_state', 'before':'detect_the_blue_pet_door', 'after':'follow_the_30mm_black_line'},
             {'trigger':'close_to_the_door', 'source':'detecting the blue pet door', 'dest':'passing thru the blue pet door', 'before':'pass_thru_the_blue_pet_door'},
             {'trigger':'thru_the_door', 'source':'passing thru the blue pet door', 'dest':'detecting the yellow demarcation line', 'before':'detect_the_yellow_demarcation_line'},
             {'trigger':'close_to_the_curb', 'source':'detecting the yellow demarcation line', 'dest':'climbing the curb', 'prepare':'stop_line_following', 'after':'climb_the_curb'},
@@ -118,7 +120,7 @@ class PreliminaryCompetitionStrategy(PreliminaryCompetitionRequirements, Machine
             return types.MethodType(self, obj)  # Accessed from instance, bind to instance
 
     @submit_to_the_pool
-    def prepare(self):  # TODO: 自己设计 gait
+    def initiate(self):  # TODO: 自己设计 gait
         self.__gait.stance_config(self._stance(0, 0, -15, 2), pitch=0, roll=0)  # 标准站姿
         self.__gait.gait_config(overlap_time=0.1, swing_time=0.15, z_clearance=3)
         self.__gait.run()  # 启动
@@ -176,8 +178,8 @@ class PreliminaryCompetitionStrategy(PreliminaryCompetitionRequirements, Machine
 
     @submit_to_the_pool
     def detect_the_blue_pet_door(self):
-        shape = cv.cvtColor(cv.imread("pet_door_standard.jpg"), cv.COLOR_BGR2GRAY)
-        while True:
+        shape = cv.imread(str(Path(__file__).parent/'object_shapes/pet_door.jpg'), cv.IMREAD_GRAYSCALE)  # The image should be in the working directory or a full path of image should be given.
+        while not self.finished.is_set():
 
             sleep(0.1)
 
@@ -204,10 +206,10 @@ class PreliminaryCompetitionStrategy(PreliminaryCompetitionRequirements, Machine
 
     @submit_to_the_pool
     def pass_thru_the_blue_pet_door(self):  # TODO: 自己设计 gait
-        sleep(2.5)
+        sleep(2.5)  # FIXME: 判断非常接近门的愚蠢标准
         self.__gait.stance_config(self._stance(0, 0, -12, 2), pitch=0, roll=0)  # 趴下
         self.__gait.gait_config(overlap_time=0.1, swing_time=0.15, z_clearance=2)
-        sleep(8)
+        sleep(8)  # FIXME: 判断全身都通过门的愚蠢标准
         self.__gait.stance_config(self._stance(0, 0, -15, 2), pitch=0, roll=0)  # 过完门站起来.
 
         self.__camera.set_pwm_servo_pulse(2300)
@@ -216,7 +218,7 @@ class PreliminaryCompetitionStrategy(PreliminaryCompetitionRequirements, Machine
 
     @submit_to_the_pool
     def detect_the_yellow_demarcation_line(self):
-        while True:
+        while not self.finished.is_set():
 
             sleep(0.1)
 
@@ -260,6 +262,7 @@ class PreliminaryCompetitionStrategy(PreliminaryCompetitionRequirements, Machine
     @submit_to_the_pool
     def descend_the_curb(self):  # TODO: 自己设计动作
 
+        # FIXME: 因为判断是否足够接近 curb 的标准不够好，所以只能勉强机器重新巡线向前走 1s，再开始下 curb。
         self.follow_the_30mm_black_line()
         sleep(1)
         self.line_following_stopped.set()
@@ -280,8 +283,8 @@ class PreliminaryCompetitionStrategy(PreliminaryCompetitionRequirements, Machine
 
     @submit_to_the_pool
     def detect_the_black_cross(self):
-        shape = cv.cvtColor(cv.imread("cross_standard.png"), cv.COLOR_BGR2GRAY)
-        while True:
+        shape = cv.imread(str(Path(__file__).parent/'object_shapes/cross.png'), cv.IMREAD_GRAYSCALE)
+        while not self.finished.is_set():
 
             sleep(0.1)
 
@@ -306,7 +309,7 @@ class PreliminaryCompetitionStrategy(PreliminaryCompetitionRequirements, Machine
 
     @submit_to_the_pool
     def finish(self):
-        sleep(5)  # crossed finish line after 5s
+        sleep(5)  # FIXME: 判断全身都通过终点线的愚蠢标准
         self.finished.set()
 
     @staticmethod
@@ -323,5 +326,5 @@ class PreliminaryCompetitionStrategy(PreliminaryCompetitionRequirements, Machine
 Ref
 curb and kerb
 add_done_callback(fn)：为该 Future 代表的线程任务注册一个“回调函数”，当该任务成功完成时，程序会自动触发该 fn 函数。
-https://docs.python.org/zh-cn/3/library/multiprocessing.html#multiprocessing.pool.Pool.terminate
+
 '''

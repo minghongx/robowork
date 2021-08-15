@@ -1,6 +1,5 @@
-import threading
-from .BusServoControl import *
-from . import ActionGroupControl as AGC
+from vendor.deprecated.BusServoControl import *
+from vendor.deprecated import ActionGroupControl as AGC
 
 def getServoPulse(id):
     return getBusServoPulse(id)
