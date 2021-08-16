@@ -141,11 +141,11 @@ class PreliminaryCompetitionStrategy(PreliminaryCompetitionRequirements, Machine
             self.frames.append(frame)
 
     @submit_to_the_pool()
-    def stop_line_following(self, event):
+    def stop_line_following(self, event=None):
         self.line_following_stopped.set()
 
     @submit_to_the_pool()
-    def follow_the_30mm_black_line(self, event):  # TODO: 自己设计 gait
+    def follow_the_30mm_black_line(self, event=None):  # TODO: 自己设计 gait
         self.line_following_stopped.clear()
         while not self.finished.is_set() and not self.line_following_stopped.is_set():
 
