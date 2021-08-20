@@ -1,2 +1,1 @@
-# Intentionally blank page
-This page intentionally left blank
+locales/README.en_GB.md
