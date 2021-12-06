@@ -1,6 +1,6 @@
-# <div style="text-align: center;">2021 Summer at XJTLU</div>
-
----
+<div style="text-align: center;">
+  # 2021 Summer at XJTLU
+</div>
 
 ![certificate of honor](results/certificate_of_honor.JPG)
 
