@@ -1,6 +1,4 @@
-# <div style="text-align: center;">二零二一年在西浦的夏天</div>
-
----
+# 二零二一年在西浦的夏天
 
 ![荣誉证书](results/certificate_of_honor.JPG)
 
