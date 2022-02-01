@@ -2,7 +2,7 @@
 import sys
 import time
 import RPi.GPIO as GPIO
-from vendor.deprecated.BusServoCmd import *
+from external.deprecated.BusServoCmd import *
 from smbus2 import SMBus, i2c_msg
 
 #幻尔科技raspberrypi扩展板sdk#

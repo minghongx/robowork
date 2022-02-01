@@ -12,10 +12,10 @@ import numpy as np
 import cv2 as cv
 from transitions import Machine
 
-# from vendor.mpu6050.mpu6050 import mpu6050
-from vendor.deprecated.HiwonderPuppy import PUPPY, BusServoParams  # TODO: Obsolete these modules
-from vendor.deprecated.ServoCmd import runActionGroup
-from vendor.deprecated.BusServoControl import setBusServoPulse
+# from external.mpu6050.mpu6050 import mpu6050
+from external.deprecated.HiwonderPuppy import PUPPY, BusServoParams  # TODO: Obsolete these modules
+from external.deprecated.ServoCmd import runActionGroup
+from external.deprecated.BusServoControl import setBusServoPulse
 
 from puppypi_pro.hiwonder_puppypipro_servo import PWMServos
 from puppypi_pro.locomotion_control import ActionGroups

@@ -1,5 +1,5 @@
-from vendor.deprecated.BusServoControl import *
-from vendor.deprecated import ActionGroupControl as AGC
+from external.deprecated.BusServoControl import *
+from external.deprecated import ActionGroupControl as AGC
 
 def getServoPulse(id):
     return getBusServoPulse(id)
